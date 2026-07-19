@@ -186,3 +186,59 @@ button{border:0;background:none;color:inherit}
 @supports not (background:color-mix(in srgb,#000 50%,#fff)){
   .topbar,.bottom-nav{background:var(--surface)}
 }
+
+/* 2026-07-19 r3: LaTeX previews, responsive diagrams and safer formula overflow */
+.problem-preview{
+  display:block;
+  max-height:5.35em;
+  min-height:5.35em;
+  overflow:hidden;
+  line-height:1.72;
+}
+.problem-preview br{display:none}
+.problem-preview h2,.problem-preview h3,.problem-preview h4,
+.problem-preview ul,.problem-preview ol,.problem-preview blockquote,
+.problem-preview .proof-box,.problem-preview .theorem{display:inline;margin:0;padding:0;border:0;background:none}
+.problem-preview mjx-container{font-size:.94em!important;max-width:100%;margin:0 .08em!important}
+.problem-preview mjx-container[display="true"]{display:inline-block!important;padding:0!important;overflow:hidden!important;vertical-align:-.15em}
+.problem-preview mjx-container svg{max-width:100%}
+
+.latex-content{min-width:0}
+.latex-content mjx-container[jax="CHTML"]{max-width:100%}
+.latex-content mjx-container[jax="CHTML"][display="true"]{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+}
+.latex-content .text-center{text-align:center}
+.latex-content dl{margin:1em 0}
+.latex-content dt{font-weight:800;margin-top:.8em}
+.latex-content dd{margin:.25em 0 .7em 1.3em}
+.math-render-warning{padding:11px 13px;margin-bottom:14px;border-radius:12px;background:#fff7e5;color:#8a5a00;font:13px/1.6 system-ui,sans-serif}
+[data-theme="dark"] .math-render-warning{background:#3a2b12;color:#ffd886}
+
+.problem-diagram{margin:22px 0 4px}
+.diagram-frame{
+  width:100%;
+  overflow:hidden;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:#fff;
+  box-shadow:var(--shadow-sm);
+}
+.diagram-frame img{display:block;width:100%;height:auto;aspect-ratio:15/8;object-fit:contain}
+.problem-diagram figcaption{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font:12px/1.55 system-ui,sans-serif}
+.problem-diagram figcaption>span{font-size:11px}
+
+@media(max-width:640px){
+  .problem-preview{min-height:0;max-height:5.2em}
+  .problem-preview mjx-container{font-size:.9em!important}
+  .problem-diagram{margin-top:18px}
+  .diagram-frame{border-radius:14px}
+  .diagram-frame img{aspect-ratio:auto;min-height:190px}
+  .problem-diagram figcaption{display:block}
+  .problem-diagram figcaption>span{display:block;margin-top:2px}
+  .latex-content mjx-container[jax="CHTML"][display="true"]{padding-bottom:5px}
+}

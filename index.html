@@ -9,13 +9,15 @@
   <meta name="description" content="数之谜数学供题资料库">
   <title>数之谜 · 数学供题库</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%232775ff%22/><path d=%22M17 18h30v7H17zm0 11h20v7H17zm0 11h30v7H17z%22 fill=%22white%22/><circle cx=%2245%22 cy=%2232%22 r=%226%22 fill=%22%237ee7ff%22/></svg>">
-  <link rel="stylesheet" href="styles.css?v=20260719-r2">
+  <link rel="stylesheet" href="styles.css?v=20260719-r3">
   <script>
     window.MathJax = {
       tex: {
         inlineMath: [['$', '$'], ['\\(', '\\)']],
         displayMath: [['$$', '$$'], ['\\[', '\\]']],
         processEscapes: true,
+        processEnvironments: true,
+        maxBuffer: 64 * 1024,
         macros: {
           Z: '\\mathbb{Z}', ZZ: '\\mathbb{Z}', N: '\\mathbb{N}', R: '\\mathbb{R}',
           Un: 'U_n', U: 'U_n', ph: '\\varphi', ord: '\\operatorname{ord}',
@@ -28,11 +30,11 @@
       startup: { typeset: false }
     };
   </script>
-  <script src="config.js?v=20260719-r2"></script>
+  <script src="config.js?v=20260719-r3"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-  <script defer src="app.js?v=20260719-r2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+  <script defer src="app.js?v=20260719-r3"></script>
 </head>
 <body>
   <div id="app">

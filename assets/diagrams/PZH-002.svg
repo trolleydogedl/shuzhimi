@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="480" viewBox="0 0 900 480" role="img" aria-labelledby="title desc">
+<title>PZH-002 示意图</title><desc>用于帮助理解题意的示意图，不作为题目条件</desc>
+<rect width="100%" height="100%" rx="24" fill="#ffffff"/><style>
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;fill:#24324a}
+.label{font-size:18px;font-weight:700}.small{font-size:14px;fill:#52627a}.tiny{font-size:12px;fill:#6b7a90}
+.line{stroke:#26364d;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.soft{stroke:#91a4bd;stroke-width:1.3;fill:none}.grid{stroke:#cbd5e1;stroke-width:1}.accent{stroke:#2775ff;stroke-width:4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.accent-fill{fill:#dbeafe;stroke:#2775ff;stroke-width:2}.warm{fill:#fff2c7;stroke:#d69e2e;stroke-width:2}.good{fill:#dcfce7;stroke:#16a34a;stroke-width:2}.muted-fill{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.5}
+</style><text x="40" y="42" class="label">抛物线上的凸多边形与一种三角剖分</text>
+<line x1="55" y1="405" x2="840" y2="405" class="soft"/><line x1="70" y1="430" x2="70" y2="65" class="soft"/>
+<path d="M 90 390 Q 420 365 800 110" class="soft" stroke-dasharray="7 7"/>
+<polygon points="95.0,384.6 200.0,368.4 305.0,341.4 410.0,303.6 515.0,255.0 620.0,195.6 725.0,125.4" fill="#eff6ff" stroke="#26364d" stroke-width="2.4"/><line x1="95" y1="384.6" x2="305" y2="341.4" stroke="#2775ff" stroke-width="2"/><line x1="95" y1="384.6" x2="410" y2="303.6" stroke="#2775ff" stroke-width="2"/><line x1="95" y1="384.6" x2="515" y2="255.0" stroke="#2775ff" stroke-width="2"/><line x1="95" y1="384.6" x2="620" y2="195.6" stroke="#2775ff" stroke-width="2"/><circle cx="95" cy="384.6" r="5.5" fill="#2775ff"/><text x="82" y="371.6" class="small">A1</text><circle cx="200" cy="368.4" r="5.5" fill="#2775ff"/><text x="187" y="355.4" class="small">A2</text><circle cx="305" cy="341.4" r="5.5" fill="#2775ff"/><text x="292" y="328.4" class="small">A3</text><circle cx="410" cy="303.6" r="5.5" fill="#2775ff"/><text x="397" y="290.6" class="small">A4</text><circle cx="515" cy="255.0" r="5.5" fill="#2775ff"/><text x="502" y="242.0" class="small">A5</text><circle cx="620" cy="195.6" r="5.5" fill="#2775ff"/><text x="607" y="182.6" class="small">A6</text><circle cx="725" cy="125.39999999999998" r="5.5" fill="#2775ff"/><text x="712" y="112.39999999999998" class="small">A7</text><text x="610" y="447" class="small">Aₖ=(k,k²)</text><text x="90" y="458" class="tiny">蓝色对角线仅表示一种可能的剖分</text></svg>

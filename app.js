@@ -119,91 +119,196 @@
       </div>`;
   }
 
-  function stripLatex(s='') {
-    return String(s)
-      .replace(/%[^\n]*/g,' ')
-      .replace(/\\begin\{[^}]+\}|\\end\{[^}]+\}/g,' ')
-      .replace(/\\(?:section|subsection|subsubsection)\*?\{([^}]*)\}/g,' $1 ')
-      .replace(/\\(?:textbf|emph|textit|underline)\{([^}]*)\}/g,' $1 ')
-      .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g,' ')
-      .replace(/[{}$^_\\]/g,' ')
-      .replace(/\s+/g,' ')
+  const diagramMap = {
+    'PZH-002': ['抛物线上的凸多边形与三角剖分示意', '抛物线顶点、凸多边形及一种三角剖分'],
+    'PZH-009': ['灯阵同步更新示意', '两组方格展示亮灯状态从 t=k 到 t=k+1 的变化'],
+    'PZH-016': ['有限差分三角形示意', '由上一层相邻两数之差生成下一层'],
+    'PZH-021': ['整点与同余分盒示意', '整点坐标差、公因数以及模幂分盒的二维示意'],
+    'PZH-028': ['正方形擦除游戏示意', '选中一格后擦除同一行和同一列并留下四个矩形块'],
+    'PZH-029': ['方格裂缝面积示意', '单调格路径、端点对角线及两者围成的面积'],
+    'PZH-032': ['彩色多边形剖分示意', '顶点染色、三角剖分和清三角形示意'],
+    'PZH-033': ['蜂巢棋盘与直飞示意', '边长为三的蜂巢棋盘以及沿蜂线连续前进的路径片段'],
+    'PZH-036': ['正奇边形距离询问示意', '正奇边形上被标记顶点及相距为 d 的点对']
+  };
+
+  function renderProblemDiagram(code) {
+    const item = diagramMap[code];
+    if (!item) return '';
+    const [caption, alt] = item;
+    return `<figure class="problem-diagram">
+      <div class="diagram-frame"><img src="assets/diagrams/${attr(code)}.svg?v=20260719-r3" alt="${attr(alt)}" loading="lazy" decoding="async"></div>
+      <figcaption>${esc(caption)}<span>示意图仅用于帮助理解，不作为题目附加条件</span></figcaption>
+    </figure>`;
+  }
+
+  function sanitizePublicLatex(source='') {
+    let src = String(source || '').replace(/\r\n?/g, '\n');
+
+    // Public pages must not expose scoring rubrics, examiner notes, declarations or contact details.
+    const privateHeading = '(?:评分标准|评分细则|给分点|阅卷说明|阅卷标准|参考评分|考查内容|考察内容|考查要点|原创声明|供题者信息|命题人信息|联系方式)';
+    const privateSection = new RegExp(`\\\\(?:section|subsection|subsubsection)\\*?\\{[^{}]*${privateHeading}[^{}]*\\}[\\s\\S]*?(?=\\\\(?:section|subsection|subsubsection)\\*?\\{|$)`, 'g');
+    for (let i = 0; i < 8; i++) {
+      const next = src.replace(privateSection, '');
+      if (next === src) break;
+      src = next;
+    }
+
+    // MathJax does not implement TikZ. Remove the source block; a responsive SVG is inserted by problem code.
+    src = src
+      .replace(/\\section\*?\{\s*示意图\s*\}\s*(?:\\begin\{center\}\s*)?(?:\\\[\s*)?\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}(?:\s*\\\])?(?:\s*\\end\{center\})?/g, '')
+      .replace(/(?<!\\)\\\[\s*\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}\s*(?<!\\)\\\]/g, '')
+      .replace(/\\begin\{center\}\s*\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}\s*\\end\{center\}/g, '')
+      .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/g, '')
+      .replace(/(?<!\\)\\\[\s*(?<!\\)\\\]/g, '');
+
+    return src.trim();
+  }
+
+  function protectMath(source, math) {
+    const hold = (value) => `\uE000${math.push(value) - 1}\uE001`;
+    let src = source;
+
+    // Protect outer delimiters before inner environments. This prevents nested @@MATH_X@@ placeholders.
+    src = src.replace(/(?<!\\)\\\[[\s\S]*?(?<!\\)\\\]/g, m => hold(m));
+    src = src.replace(/\$\$[\s\S]*?\$\$/g, m => hold(m));
+    src = src.replace(/(?<!\\)\\\([\s\S]*?(?<!\\)\\\)/g, m => hold(m));
+    src = src.replace(/\$(?!\$)(?:\\.|[^$\n])+?\$/g, m => hold(m));
+    src = src.replace(/\\begin\{(align\*?|aligned|gather\*?|multline\*?|equation\*?|cases|array|matrix|pmatrix|bmatrix|vmatrix)\}[\s\S]*?\\end\{\1\}/g,
+      m => hold(`\\[${m}\\]`));
+    return src;
+  }
+
+  function restoreMathTokens(source, math) {
+    let src = source;
+    const token = /\uE000(\d+)\uE001/g;
+    for (let pass = 0; pass < 6; pass++) {
+      const next = src.replace(token, (_, i) => math[Number(i)] || '');
+      if (next === src) break;
+      src = next;
+    }
+    return src;
+  }
+
+  function stripLatex(source='') {
+    return sanitizePublicLatex(source)
+      .replace(/%[^\n]*/g, ' ')
+      .replace(/\\(?:section|subsection|subsubsection|paragraph)\*?\{([^{}]*)\}/g, ' $1 ')
+      .replace(/\\(?:textbf|emph|textit|underline|text)\{([^{}]*)\}/g, ' $1 ')
+      .replace(/\\begin\{[^}]+\}|\\end\{[^}]+\}/g, ' ')
+      .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g, ' ')
+      .replace(/[{}$^_\\]/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function latexPreviewSource(source='', limit=300) {
+    let src = sanitizePublicLatex(source).replace(/%[^\n]*/g, ' ');
+    const math = [];
+    src = protectMath(src, math)
+      .replace(/\\(?:section|subsection|subsubsection|paragraph)\*?\{([^{}]*)\}/g, ' $1 ')
+      .replace(/\\begin\{(?:proof|lemma|theorem|proposition|corollary|itemize|enumerate|description|quote|center)\}(?:\[[^\]]*\])?/g, ' ')
+      .replace(/\\end\{(?:proof|lemma|theorem|proposition|corollary|itemize|enumerate|description|quote|center)\}/g, ' ')
+      .replace(/\\item(?:\[[^\]]*\])?/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const parts = src.split(/(\uE000\d+\uE001)/g);
+    let out = '';
+    let visible = 0;
+    let mathCount = 0;
+    for (const part of parts) {
+      const m = part.match(/^\uE000(\d+)\uE001$/);
+      if (m) {
+        if (visible >= limit || mathCount >= 3) continue;
+        let value = math[Number(m[1])] || '';
+        if (value.startsWith('\\[') && value.endsWith('\\]')) value = `\\(${value.slice(2, -2)}\\)`;
+        else if (value.startsWith('$$') && value.endsWith('$$')) value = `\\(${value.slice(2, -2)}\\)`;
+        if (value.length > 320 || /\\begin\{(?:align|gather|multline)/.test(value)) continue;
+        out += ` ${value} `;
+        visible += Math.min(52, value.length);
+        mathCount++;
+        continue;
+      }
+      if (visible >= limit) continue;
+      const take = part.slice(0, Math.max(0, limit - visible));
+      out += take;
+      visible += take.length;
+    }
+    if (visible >= limit) out += '…';
+    return out.trim();
   }
 
   function latexToHtml(source='') {
-    let src = String(source || '').replace(/\r\n?/g,'\n').replace(/%[^\n]*/g,'');
+    let src = sanitizePublicLatex(source).replace(/%[^\n]*/g, '');
     const math = [];
-    const hold = (value) => `@@MATH_${math.push(value)-1}@@`;
-
-    // Protect full math environments first.
-    src = src.replace(/\\begin\{(align\*?|aligned|gather\*?|multline\*?|equation\*?|cases|array|matrix|pmatrix|bmatrix|vmatrix)\}([\s\S]*?)\\end\{\1\}/g,
-      (_, env, body) => hold(`\\[\\begin{${env}}${body}\\end{${env}}\\]`));
-    src = src.replace(/\\\[([\s\S]*?)\\\]/g, m => hold(m));
-    src = src.replace(/\$\$([\s\S]*?)\$\$/g, m => hold(m));
-    src = src.replace(/\\\(([\s\S]*?)\\\)/g, m => hold(m));
-    src = src.replace(/\$(?!\$)([^\n$]+?)\$/g, m => hold(m));
-
+    src = protectMath(src, math);
     src = esc(src);
 
-    // Structural environments.
     src = src
-      .replace(/\\section\*?\{([^{}]*)\}/g,'<h2>$1</h2>')
-      .replace(/\\subsection\*?\{([^{}]*)\}/g,'<h3>$1</h3>')
-      .replace(/\\subsubsection\*?\{([^{}]*)\}/g,'<h4>$1</h4>')
-      .replace(/\\begin\{proof\}/g,'<div class="proof-box"><div class="proof-title">证明</div>')
-      .replace(/\\end\{proof\}/g,'</div>')
-      .replace(/\\begin\{lemma\}(?:\[([^\]]*)\])?/g,(_,t)=>`<div class="theorem"><div class="theorem-title">引理${t?`（${t}）`:''}</div>`)
-      .replace(/\\end\{lemma\}/g,'</div>')
-      .replace(/\\begin\{theorem\}(?:\[([^\]]*)\])?/g,(_,t)=>`<div class="theorem"><div class="theorem-title">定理${t?`（${t}）`:''}</div>`)
-      .replace(/\\end\{theorem\}/g,'</div>')
-      .replace(/\\begin\{proposition\}(?:\[([^\]]*)\])?/g,(_,t)=>`<div class="theorem"><div class="theorem-title">命题${t?`（${t}）`:''}</div>`)
-      .replace(/\\end\{proposition\}/g,'</div>')
-      .replace(/\\begin\{corollary\}(?:\[([^\]]*)\])?/g,(_,t)=>`<div class="theorem"><div class="theorem-title">推论${t?`（${t}）`:''}</div>`)
-      .replace(/\\end\{corollary\}/g,'</div>')
-      .replace(/\\begin\{quote\}/g,'<blockquote>').replace(/\\end\{quote\}/g,'</blockquote>')
-      .replace(/\\begin\{center\}/g,'<div style="text-align:center">').replace(/\\end\{center\}/g,'</div>')
-      .replace(/\\begin\{itemize\}/g,'<ul>').replace(/\\end\{itemize\}/g,'</ul>')
-      .replace(/\\begin\{enumerate\}(?:\[[^\]]*\])?/g,'<ol>').replace(/\\end\{enumerate\}/g,'</ol>')
-      .replace(/\\item(?:\[[^\]]*\])?\s*/g,'<li>');
+      .replace(/\\section\*?\{([^{}]*)\}/g, '<h2>$1</h2>')
+      .replace(/\\subsection\*?\{([^{}]*)\}/g, '<h3>$1</h3>')
+      .replace(/\\subsubsection\*?\{([^{}]*)\}/g, '<h4>$1</h4>')
+      .replace(/\\paragraph\*?\{([^{}]*)\}/g, '<h4>$1</h4>')
+      .replace(/\\begin\{proof\}/g, '<div class="proof-box"><div class="proof-title">证明</div>')
+      .replace(/\\end\{proof\}/g, '</div>')
+      .replace(/\\begin\{lemma\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">引理${t ? `（${t}）` : ''}</div>`)
+      .replace(/\\end\{lemma\}/g, '</div>')
+      .replace(/\\begin\{theorem\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">定理${t ? `（${t}）` : ''}</div>`)
+      .replace(/\\end\{theorem\}/g, '</div>')
+      .replace(/\\begin\{proposition\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">命题${t ? `（${t}）` : ''}</div>`)
+      .replace(/\\end\{proposition\}/g, '</div>')
+      .replace(/\\begin\{corollary\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">推论${t ? `（${t}）` : ''}</div>`)
+      .replace(/\\end\{corollary\}/g, '</div>')
+      .replace(/\\begin\{quote\}/g, '<blockquote>').replace(/\\end\{quote\}/g, '</blockquote>')
+      .replace(/\\begin\{center\}/g, '<div class="text-center">').replace(/\\end\{center\}/g, '</div>')
+      .replace(/\\begin\{itemize\}/g, '<ul>').replace(/\\end\{itemize\}/g, '</ul>')
+      .replace(/\\begin\{enumerate\}(?:\[[^\]]*\])?/g, '<ol>').replace(/\\end\{enumerate\}/g, '</ol>')
+      .replace(/\\begin\{description\}(?:\[[^\]]*\])?/g, '<dl>').replace(/\\end\{description\}/g, '</dl>')
+      .replace(/\\item\[([^\]]*)\]\s*/g, '<dt>$1</dt><dd>')
+      .replace(/\\item\s*/g, '<li>');
 
-    // Common inline commands; repeat to handle shallow nesting.
-    for (let i=0;i<5;i++) {
+    for (let i = 0; i < 7; i++) {
       src = src
-        .replace(/\\textbf\{([^{}]*)\}/g,'<strong>$1</strong>')
-        .replace(/\\(?:emph|textit)\{([^{}]*)\}/g,'<em>$1</em>')
-        .replace(/\\underline\{([^{}]*)\}/g,'<u>$1</u>')
-        .replace(/\\text\{([^{}]*)\}/g,'$1');
+        .replace(/\\textbf\{([^{}]*)\}/g, '<strong>$1</strong>')
+        .replace(/\\(?:emph|textit)\{([^{}]*)\}/g, '<em>$1</em>')
+        .replace(/\\underline\{([^{}]*)\}/g, '<u>$1</u>')
+        .replace(/\\text\{([^{}]*)\}/g, '$1');
     }
 
     src = src
-      .replace(/\\label\{[^}]*\}/g,'')
-      .replace(/\\ref\{[^}]*\}/g,'')
-      .replace(/\\(?:vspace|hspace)\*?\{[^}]*\}/g,' ')
-      .replace(/\\(?:medskip|bigskip|smallskip|noindent|newpage|clearpage|dotfill)\b/g,' ')
-      .replace(/\\(?:quad|qquad|[,;!])/g,' ')
-      .replace(/\\\\(?:\[[^\]]*\])?/g,'<br>')
-      .replace(/~+/g,'&nbsp;')
-      .replace(/\n\s*\n+/g,'<br><br>')
-      .replace(/\n/g,' ')
-      .replace(/\s{2,}/g,' ')
+      .replace(/\\label\{[^}]*\}/g, '')
+      .replace(/\\ref\{[^}]*\}/g, '')
+      .replace(/\\(?:vspace|hspace)\*?\{[^}]*\}/g, ' ')
+      .replace(/\\(?:medskip|bigskip|smallskip|noindent|newpage|clearpage|dotfill)\b/g, ' ')
+      .replace(/\\(?:quad|qquad|[,;!])/g, ' ')
+      .replace(/\\\\(?:\[[^\]]*\])?/g, '<br>')
+      .replace(/~+/g, '&nbsp;')
+      .replace(/\n\s*\n+/g, '<br><br>')
+      .replace(/\n/g, ' ')
+      .replace(/\s{2,}/g, ' ')
       .trim();
 
-    // Put math back unescaped.
-    src = src.replace(/@@MATH_(\d+)@@/g, (_,i) => math[Number(i)] || '');
+    src = restoreMathTokens(src, math);
     return src || '<p>暂无内容</p>';
   }
 
-  async function typesetMath(root=document) {
+  async function typesetMath(root=document, attempt=0) {
+    if (!root) return;
     try {
       if (window.MathJax?.typesetPromise) {
         window.MathJax.typesetClear?.([root]);
+        window.MathJax.texReset?.();
         await window.MathJax.typesetPromise([root]);
-      } else {
-        setTimeout(() => typesetMath(root), 350);
+      } else if (attempt < 24) {
+        setTimeout(() => typesetMath(root, attempt + 1), 250);
       }
     } catch (e) {
       console.warn('MathJax typeset error', e);
+      root.querySelectorAll?.('.math-render-warning').forEach(el => el.remove());
+      const warning = document.createElement('div');
+      warning.className = 'math-render-warning';
+      warning.textContent = '个别公式渲染失败，可刷新页面或在管理员附件中查看原始 PDF/TeX。';
+      root.prepend(warning);
     }
   }
 
@@ -265,7 +370,7 @@
       <article class="problem-card" data-open-problem="${attr(p.code)}" tabindex="0">
         <div class="problem-top"><span class="problem-code">${esc(p.code)}</span></div>
         <h3>${esc(p.title)}</h3>
-        <div class="problem-preview">${esc(stripLatex(p.problem_content).slice(0,220))}</div>
+        <div class="problem-preview">${latexToHtml(latexPreviewSource(p.problem_content))}</div>
         <div class="problem-foot">
           ${(p.tags||[]).slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
           <span class="problem-arrow">${icon('arrow')}</span>
@@ -297,6 +402,7 @@
     app.innerHTML = layout(content,'home');
     const input = document.getElementById('main-search');
     input?.addEventListener('input', debounce(e => { state.search=e.target.value; renderHome(); document.getElementById('main-search')?.focus(); }, 160));
+    typesetMath(document.querySelector('.problem-grid'));
   }
 
   function getProblem(code) { return state.problems.find(p=>p.code===code); }
@@ -330,6 +436,7 @@
           <section class="content-section">
             <h2 class="content-title"><span class="num">题</span>题目</h2>
             <div class="latex-content" id="problem-math">${latexToHtml(p.problem_content)}</div>
+            ${renderProblemDiagram(p.code)}
           </section>
           <section class="content-section">
             <h2 class="content-title"><span class="num">解</span>解答</h2>
@@ -625,7 +732,7 @@
       for(let i=0;i<total;i++){
         const p=manifest.problems[i];
         text.textContent=`${i+1}/${total}  正在导入 ${p.code} ${p.title}`; bar.style.width=`${Math.round(i/total*100)}%`;
-        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:p.problem_content,solution_content:p.solution_content,content_format:p.content_format||'latex',tags:p.tags||[],published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
+        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:sanitizePublicLatex(p.problem_content),solution_content:sanitizePublicLatex(p.solution_content),content_format:p.content_format||'latex',tags:p.tags||[],published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
         if(pErr)throw new Error(`${p.code} 写入失败：${pErr.message}`);
         const {error:mErr}=await client.from('problem_admin').upsert({problem_id:problem.id,...(p.admin||{})},{onConflict:'problem_id'});if(mErr)throw new Error(`${p.code} 管理信息失败：${mErr.message}`);
         for(const f of p.files||[]){
