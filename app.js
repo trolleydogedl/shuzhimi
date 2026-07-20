@@ -28,6 +28,11 @@
 
 
   const SUBJECTS = ['几何','代数','数论','组合'];
+  const ALLOWED_CONTENT_FORMATS = new Set(['latex','text','markdown']);
+  function normalizeContentFormat(value) {
+    const format = String(value || '').trim().toLowerCase();
+    return ALLOWED_CONTENT_FORMATS.has(format) ? format : 'markdown';
+  }
   const SUBJECT_BY_CODE = {
     'PZH-001':'数论','PZH-002':'几何','PZH-003':'数论','PZH-004':'数论','PZH-005':'组合',
     'PZH-006':'组合','PZH-007':'组合','PZH-008':'数论','PZH-009':'组合','PZH-010':'数论',
@@ -587,7 +592,7 @@
     const form=e.currentTarget, btn=document.getElementById('editor-save');
     btn.disabled=true;btn.innerHTML='<span class="spinner"></span>保存中';
     const code=form.code.value.trim().toUpperCase();
-    const extras=form.extra_tags.value.split(/[,，]/).map(x=>x.trim()).filter(x=>x&&!SUBJECTS.includes(x)); const payload={code,title:form.title.value.trim(),sort_order:Number(form.sort_order.value)||0,problem_content:form.problem_content.value,solution_content:form.solution_content.value,content_format:'mixed-latex',tags:[form.subject.value,...new Set(extras)],published:form.published.value==='true'};
+    const extras=form.extra_tags.value.split(/[,，]/).map(x=>x.trim()).filter(x=>x&&!SUBJECTS.includes(x)); const payload={code,title:form.title.value.trim(),sort_order:Number(form.sort_order.value)||0,problem_content:form.problem_content.value,solution_content:form.solution_content.value,content_format:'markdown',tags:[form.subject.value,...new Set(extras)],published:form.published.value==='true'};
     let result;
     if(isNew) result=await client.from('problems').insert(payload).select().single();
     else result=await client.from('problems').update(payload).eq('id',oldProblem.id).select().single();
@@ -651,7 +656,7 @@
       for(let i=0;i<total;i++){
         const p=manifest.problems[i];
         text.textContent=`${i+1}/${total}  正在导入 ${p.code} ${p.title}`; bar.style.width=`${Math.round(i/total*100)}%`;
-        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:sanitizePublicLatex(p.problem_content),solution_content:sanitizePublicLatex(p.solution_content),content_format:p.content_format||'mixed-latex',tags:importedTags(p),published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
+        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:sanitizePublicLatex(p.problem_content),solution_content:sanitizePublicLatex(p.solution_content),content_format:normalizeContentFormat(p.content_format),tags:importedTags(p),published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
         if(pErr)throw new Error(`${p.code} 写入失败：${pErr.message}`);
         const {error:mErr}=await client.from('problem_admin').upsert({problem_id:problem.id,...(p.admin||{})},{onConflict:'problem_id'});if(mErr)throw new Error(`${p.code} 管理信息失败：${mErr.message}`);
         for(const f of p.files||[]){
@@ -670,7 +675,7 @@
 
   function buildExportManifest() {
     return {version:1,name:'数之谜题库备份',exported_at:new Date().toISOString(),problem_count:state.problems.length,problems:state.problems.map(p=>({
-      code:p.code,sort_order:p.sort_order,title:p.title,problem_content:p.problem_content,solution_content:p.solution_content,content_format:p.content_format||'mixed-latex',primary_category:inferPrimarySubject(p),tags:displayTags(p),published:p.published,
+      code:p.code,sort_order:p.sort_order,title:p.title,problem_content:p.problem_content,solution_content:p.solution_content,content_format:normalizeContentFormat(p.content_format),primary_category:inferPrimarySubject(p),tags:displayTags(p),published:p.published,
       admin:{difficulty:p.admin?.difficulty||'',institution:p.admin?.institution||'',original_code:p.admin?.original_code||'',duplicate_note:p.admin?.duplicate_note||'',internal_notes:p.admin?.internal_notes||''},
       files:(p.files||[]).map(f=>({file_type:f.file_type,bundle_path:`files/${p.code}/${safeFileName(f.original_name)}`,original_name:f.original_name,mime_type:f.mime_type,size_bytes:f.size_bytes,storage_path:f.storage_path,id:f.id}))
     }))};
