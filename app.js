@@ -26,6 +26,49 @@
     importBusy: false
   };
 
+
+  const SUBJECTS = ['几何','代数','数论','组合'];
+  const SUBJECT_BY_CODE = {
+    'PZH-001':'数论','PZH-002':'几何','PZH-003':'数论','PZH-004':'数论','PZH-005':'组合',
+    'PZH-006':'组合','PZH-007':'组合','PZH-008':'数论','PZH-009':'组合','PZH-010':'数论',
+    'PZH-011':'组合','PZH-012':'数论','PZH-013':'组合','PZH-014':'数论','PZH-015':'组合',
+    'PZH-016':'组合','PZH-017':'组合','PZH-018':'组合','PZH-019':'数论','PZH-020':'数论',
+    'PZH-021':'数论','PZH-022':'数论','PZH-023':'组合','PZH-024':'数论','PZH-025':'组合',
+    'PZH-026':'数论','PZH-027':'组合','PZH-028':'组合','PZH-029':'几何','PZH-030':'代数',
+    'PZH-031':'数论','PZH-032':'组合','PZH-033':'组合','PZH-034':'组合','PZH-035':'代数',
+    'PZH-036':'组合','PZH-037':'代数','PZH-038':'组合','PZH-039':'数论','PZH-040':'数论',
+    'PZH-041':'数论','PZH-042':'数论'
+  };
+
+  function inferPrimarySubject(problem={}) {
+    if (SUBJECT_BY_CODE[problem.code]) return SUBJECT_BY_CODE[problem.code];
+    if (SUBJECTS.includes(problem.primary_category)) return problem.primary_category;
+    const supplied = (problem.tags || []).filter(t => SUBJECTS.includes(t));
+    if (supplied.length === 1) return supplied[0];
+    const text = `${problem.title || ''} ${stripLatex ? stripLatex(problem.problem_content || '') : problem.problem_content || ''}`;
+    const scores = {几何:0,代数:0,数论:0,组合:0};
+    const rules = {
+      几何:[['三角形',3],['多边形',2],['面积',3],['圆',2],['抛物线',3],['几何',4]],
+      代数:[['多项式',4],['函数',3],['方程',2],['根',2],['因式',3],['递推',1]],
+      数论:[['整除',3],['同余',4],['模 ',2],['素数',3],['最大公约数',4],['公因数',3],['互素',3],['因数',2],['剩余系',4]],
+      组合:[['集合族',4],['排列',3],['子集',3],['棋盘',2],['游戏',3],['树',3],['计数',2],['最少',1],['最大值',1],['询问',3]]
+    };
+    for (const [subject, words] of Object.entries(rules)) for (const [word, weight] of words) if (text.includes(word)) scores[subject] += weight;
+    return Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][1] > 0 ? Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][0] : '组合';
+  }
+
+  function displayTags(problem={}) {
+    const subject = inferPrimarySubject(problem);
+    const extras = (problem.tags || []).filter(t => t && !SUBJECTS.includes(t) && t !== subject);
+    return [subject, ...new Set(extras)];
+  }
+
+  function importedTags(problem={}) {
+    const subject = SUBJECTS.includes(problem.primary_category) ? problem.primary_category : inferPrimarySubject(problem);
+    const extras = (problem.tags || []).filter(t => t && !SUBJECTS.includes(t) && t !== subject);
+    return [subject, ...new Set(extras)];
+  }
+
   const app = document.getElementById('app');
   const toastRoot = document.getElementById('toast-root');
   const modalRoot = document.getElementById('modal-root');
@@ -119,196 +162,60 @@
       </div>`;
   }
 
+  const renderer = window.SZM_RENDER || {};
+  const sanitizePublicLatex = source => renderer.sanitizePublicSource ? renderer.sanitizePublicSource(source) : String(source || '');
+  const stripLatex = source => renderer.stripText ? renderer.stripText(source) : String(source || '');
+  const latexPreviewSource = (source, limit=280) => renderer.previewSource ? renderer.previewSource(source, limit) : String(source || '').slice(0, limit);
+  const latexToHtml = (source, options={}) => renderer.renderRichText ? renderer.renderRichText(source, options) : `<p>${esc(source)}</p>`;
+
+  // Only these two original source files contain a tikzpicture environment.
   const diagramMap = {
-    'PZH-002': ['抛物线上的凸多边形与三角剖分示意', '抛物线顶点、凸多边形及一种三角剖分'],
-    'PZH-009': ['灯阵同步更新示意', '两组方格展示亮灯状态从 t=k 到 t=k+1 的变化'],
-    'PZH-016': ['有限差分三角形示意', '由上一层相邻两数之差生成下一层'],
-    'PZH-021': ['整点与同余分盒示意', '整点坐标差、公因数以及模幂分盒的二维示意'],
-    'PZH-028': ['正方形擦除游戏示意', '选中一格后擦除同一行和同一列并留下四个矩形块'],
-    'PZH-029': ['方格裂缝面积示意', '单调格路径、端点对角线及两者围成的面积'],
-    'PZH-032': ['彩色多边形剖分示意', '顶点染色、三角剖分和清三角形示意'],
-    'PZH-033': ['蜂巢棋盘与直飞示意', '边长为三的蜂巢棋盘以及沿蜂线连续前进的路径片段'],
-    'PZH-036': ['正奇边形距离询问示意', '正奇边形上被标记顶点及相距为 d 的点对']
+    'PZH-009': ['原题灯阵状态变化示意图', '两组方格展示亮灯状态从当前时刻到下一时刻的变化'],
+    'PZH-033': ['原题蜂巢棋盘与直飞示意图', '边长为三的蜂巢棋盘以及沿蜂线连续前进的路径片段']
   };
 
   function renderProblemDiagram(code) {
     const item = diagramMap[code];
     if (!item) return '';
     const [caption, alt] = item;
-    return `<figure class="problem-diagram">
-      <div class="diagram-frame"><img src="assets/diagrams/${attr(code)}.svg?v=20260719-r3" alt="${attr(alt)}" loading="lazy" decoding="async"></div>
-      <figcaption>${esc(caption)}<span>示意图仅用于帮助理解，不作为题目附加条件</span></figcaption>
+    return `<figure class="problem-diagram original-diagram">
+      <div class="diagram-frame"><img src="assets/diagrams/${attr(code)}.svg?v=20260720-r4" alt="${attr(alt)}" loading="lazy" decoding="async"></div>
+      <figcaption>${esc(caption)}<span>由原始 TeX 中的 TikZ 图转换，未增加原题没有的图形</span></figcaption>
     </figure>`;
-  }
-
-  function sanitizePublicLatex(source='') {
-    let src = String(source || '').replace(/\r\n?/g, '\n');
-
-    // Public pages must not expose scoring rubrics, examiner notes, declarations or contact details.
-    const privateHeading = '(?:评分标准|评分细则|给分点|阅卷说明|阅卷标准|参考评分|考查内容|考察内容|考查要点|原创声明|供题者信息|命题人信息|联系方式)';
-    const privateSection = new RegExp(`\\\\(?:section|subsection|subsubsection)\\*?\\{[^{}]*${privateHeading}[^{}]*\\}[\\s\\S]*?(?=\\\\(?:section|subsection|subsubsection)\\*?\\{|$)`, 'g');
-    for (let i = 0; i < 8; i++) {
-      const next = src.replace(privateSection, '');
-      if (next === src) break;
-      src = next;
-    }
-
-    // MathJax does not implement TikZ. Remove the source block; a responsive SVG is inserted by problem code.
-    src = src
-      .replace(/\\section\*?\{\s*示意图\s*\}\s*(?:\\begin\{center\}\s*)?(?:\\\[\s*)?\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}(?:\s*\\\])?(?:\s*\\end\{center\})?/g, '')
-      .replace(/(?<!\\)\\\[\s*\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}\s*(?<!\\)\\\]/g, '')
-      .replace(/\\begin\{center\}\s*\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}\s*\\end\{center\}/g, '')
-      .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/g, '')
-      .replace(/(?<!\\)\\\[\s*(?<!\\)\\\]/g, '');
-
-    return src.trim();
-  }
-
-  function protectMath(source, math) {
-    const hold = (value) => `\uE000${math.push(value) - 1}\uE001`;
-    let src = source;
-
-    // Protect outer delimiters before inner environments. This prevents nested @@MATH_X@@ placeholders.
-    src = src.replace(/(?<!\\)\\\[[\s\S]*?(?<!\\)\\\]/g, m => hold(m));
-    src = src.replace(/\$\$[\s\S]*?\$\$/g, m => hold(m));
-    src = src.replace(/(?<!\\)\\\([\s\S]*?(?<!\\)\\\)/g, m => hold(m));
-    src = src.replace(/\$(?!\$)(?:\\.|[^$\n])+?\$/g, m => hold(m));
-    src = src.replace(/\\begin\{(align\*?|aligned|gather\*?|multline\*?|equation\*?|cases|array|matrix|pmatrix|bmatrix|vmatrix)\}[\s\S]*?\\end\{\1\}/g,
-      m => hold(`\\[${m}\\]`));
-    return src;
-  }
-
-  function restoreMathTokens(source, math) {
-    let src = source;
-    const token = /\uE000(\d+)\uE001/g;
-    for (let pass = 0; pass < 6; pass++) {
-      const next = src.replace(token, (_, i) => math[Number(i)] || '');
-      if (next === src) break;
-      src = next;
-    }
-    return src;
-  }
-
-  function stripLatex(source='') {
-    return sanitizePublicLatex(source)
-      .replace(/%[^\n]*/g, ' ')
-      .replace(/\\(?:section|subsection|subsubsection|paragraph)\*?\{([^{}]*)\}/g, ' $1 ')
-      .replace(/\\(?:textbf|emph|textit|underline|text)\{([^{}]*)\}/g, ' $1 ')
-      .replace(/\\begin\{[^}]+\}|\\end\{[^}]+\}/g, ' ')
-      .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g, ' ')
-      .replace(/[{}$^_\\]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  function latexPreviewSource(source='', limit=300) {
-    let src = sanitizePublicLatex(source).replace(/%[^\n]*/g, ' ');
-    const math = [];
-    src = protectMath(src, math)
-      .replace(/\\(?:section|subsection|subsubsection|paragraph)\*?\{([^{}]*)\}/g, ' $1 ')
-      .replace(/\\begin\{(?:proof|lemma|theorem|proposition|corollary|itemize|enumerate|description|quote|center)\}(?:\[[^\]]*\])?/g, ' ')
-      .replace(/\\end\{(?:proof|lemma|theorem|proposition|corollary|itemize|enumerate|description|quote|center)\}/g, ' ')
-      .replace(/\\item(?:\[[^\]]*\])?/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const parts = src.split(/(\uE000\d+\uE001)/g);
-    let out = '';
-    let visible = 0;
-    let mathCount = 0;
-    for (const part of parts) {
-      const m = part.match(/^\uE000(\d+)\uE001$/);
-      if (m) {
-        if (visible >= limit || mathCount >= 3) continue;
-        let value = math[Number(m[1])] || '';
-        if (value.startsWith('\\[') && value.endsWith('\\]')) value = `\\(${value.slice(2, -2)}\\)`;
-        else if (value.startsWith('$$') && value.endsWith('$$')) value = `\\(${value.slice(2, -2)}\\)`;
-        if (value.length > 320 || /\\begin\{(?:align|gather|multline)/.test(value)) continue;
-        out += ` ${value} `;
-        visible += Math.min(52, value.length);
-        mathCount++;
-        continue;
-      }
-      if (visible >= limit) continue;
-      const take = part.slice(0, Math.max(0, limit - visible));
-      out += take;
-      visible += take.length;
-    }
-    if (visible >= limit) out += '…';
-    return out.trim();
-  }
-
-  function latexToHtml(source='') {
-    let src = sanitizePublicLatex(source).replace(/%[^\n]*/g, '');
-    const math = [];
-    src = protectMath(src, math);
-    src = esc(src);
-
-    src = src
-      .replace(/\\section\*?\{([^{}]*)\}/g, '<h2>$1</h2>')
-      .replace(/\\subsection\*?\{([^{}]*)\}/g, '<h3>$1</h3>')
-      .replace(/\\subsubsection\*?\{([^{}]*)\}/g, '<h4>$1</h4>')
-      .replace(/\\paragraph\*?\{([^{}]*)\}/g, '<h4>$1</h4>')
-      .replace(/\\begin\{proof\}/g, '<div class="proof-box"><div class="proof-title">证明</div>')
-      .replace(/\\end\{proof\}/g, '</div>')
-      .replace(/\\begin\{lemma\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">引理${t ? `（${t}）` : ''}</div>`)
-      .replace(/\\end\{lemma\}/g, '</div>')
-      .replace(/\\begin\{theorem\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">定理${t ? `（${t}）` : ''}</div>`)
-      .replace(/\\end\{theorem\}/g, '</div>')
-      .replace(/\\begin\{proposition\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">命题${t ? `（${t}）` : ''}</div>`)
-      .replace(/\\end\{proposition\}/g, '</div>')
-      .replace(/\\begin\{corollary\}(?:\[([^\]]*)\])?/g, (_, t) => `<div class="theorem"><div class="theorem-title">推论${t ? `（${t}）` : ''}</div>`)
-      .replace(/\\end\{corollary\}/g, '</div>')
-      .replace(/\\begin\{quote\}/g, '<blockquote>').replace(/\\end\{quote\}/g, '</blockquote>')
-      .replace(/\\begin\{center\}/g, '<div class="text-center">').replace(/\\end\{center\}/g, '</div>')
-      .replace(/\\begin\{itemize\}/g, '<ul>').replace(/\\end\{itemize\}/g, '</ul>')
-      .replace(/\\begin\{enumerate\}(?:\[[^\]]*\])?/g, '<ol>').replace(/\\end\{enumerate\}/g, '</ol>')
-      .replace(/\\begin\{description\}(?:\[[^\]]*\])?/g, '<dl>').replace(/\\end\{description\}/g, '</dl>')
-      .replace(/\\item\[([^\]]*)\]\s*/g, '<dt>$1</dt><dd>')
-      .replace(/\\item\s*/g, '<li>');
-
-    for (let i = 0; i < 7; i++) {
-      src = src
-        .replace(/\\textbf\{([^{}]*)\}/g, '<strong>$1</strong>')
-        .replace(/\\(?:emph|textit)\{([^{}]*)\}/g, '<em>$1</em>')
-        .replace(/\\underline\{([^{}]*)\}/g, '<u>$1</u>')
-        .replace(/\\text\{([^{}]*)\}/g, '$1');
-    }
-
-    src = src
-      .replace(/\\label\{[^}]*\}/g, '')
-      .replace(/\\ref\{[^}]*\}/g, '')
-      .replace(/\\(?:vspace|hspace)\*?\{[^}]*\}/g, ' ')
-      .replace(/\\(?:medskip|bigskip|smallskip|noindent|newpage|clearpage|dotfill)\b/g, ' ')
-      .replace(/\\(?:quad|qquad|[,;!])/g, ' ')
-      .replace(/\\\\(?:\[[^\]]*\])?/g, '<br>')
-      .replace(/~+/g, '&nbsp;')
-      .replace(/\n\s*\n+/g, '<br><br>')
-      .replace(/\n/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-
-    src = restoreMathTokens(src, math);
-    return src || '<p>暂无内容</p>';
   }
 
   async function typesetMath(root=document, attempt=0) {
     if (!root) return;
+    if (!window.MathJax?.typesetPromise) {
+      if (attempt < 32) setTimeout(() => typesetMath(root, attempt + 1), 250);
+      return;
+    }
     try {
-      if (window.MathJax?.typesetPromise) {
-        window.MathJax.typesetClear?.([root]);
-        window.MathJax.texReset?.();
-        await window.MathJax.typesetPromise([root]);
-      } else if (attempt < 24) {
-        setTimeout(() => typesetMath(root, attempt + 1), 250);
+      window.MathJax.typesetClear?.([root]);
+      window.MathJax.texReset?.();
+      await window.MathJax.typesetPromise([root]);
+    } catch (error) {
+      console.warn('MathJax bulk typeset error; retrying block by block', error);
+      const blocks = [];
+      if (root.matches?.('.latex-content,.problem-preview')) blocks.push(root);
+      blocks.push(...(root.querySelectorAll?.('.latex-content,.problem-preview') || []));
+      let failures = 0;
+      for (const block of [...new Set(blocks)]) {
+        try {
+          window.MathJax.typesetClear?.([block]);
+          await window.MathJax.typesetPromise([block]);
+        } catch (blockError) {
+          failures++;
+          console.warn('MathJax block error', blockError, block);
+        }
       }
-    } catch (e) {
-      console.warn('MathJax typeset error', e);
       root.querySelectorAll?.('.math-render-warning').forEach(el => el.remove());
-      const warning = document.createElement('div');
-      warning.className = 'math-render-warning';
-      warning.textContent = '个别公式渲染失败，可刷新页面或在管理员附件中查看原始 PDF/TeX。';
-      root.prepend(warning);
+      if (failures) {
+        const warning = document.createElement('div');
+        warning.className = 'math-render-warning';
+        warning.textContent = `有 ${failures} 个内容区块包含无法识别的公式。请在管理后台使用“预览格式”定位并修改该段。`;
+        root.prepend(warning);
+      }
     }
   }
 
@@ -350,13 +257,13 @@
   }
 
   function allTags() {
-    return ['全部', ...new Set(state.problems.flatMap(p => p.tags || []))];
+    return ['全部', ...SUBJECTS];
   }
 
   function filteredProblems() {
     const q = state.search.trim().toLowerCase();
     return state.problems.filter(p => {
-      const tagOk = state.tag === '全部' || (p.tags||[]).includes(state.tag);
+      const tagOk = state.tag === '全部' || inferPrimarySubject(p) === state.tag;
       const searchOk = !q || `${p.code} ${p.title} ${stripLatex(p.problem_content)}`.toLowerCase().includes(q);
       return tagOk && searchOk;
     });
@@ -365,14 +272,14 @@
   function renderHome() {
     const list = filteredProblems();
     const tags = allTags();
-    const tagCount = new Set(state.problems.flatMap(p=>p.tags||[])).size;
+    const tagCount = SUBJECTS.length;
     const cards = list.length ? list.map(p => `
       <article class="problem-card" data-open-problem="${attr(p.code)}" tabindex="0">
         <div class="problem-top"><span class="problem-code">${esc(p.code)}</span></div>
         <h3>${esc(p.title)}</h3>
         <div class="problem-preview">${latexToHtml(latexPreviewSource(p.problem_content))}</div>
         <div class="problem-foot">
-          ${(p.tags||[]).slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
+          ${displayTags(p).slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}
           <span class="problem-arrow">${icon('arrow')}</span>
         </div>
       </article>`).join('') : `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">∅</div><strong>没有匹配的题目</strong><div>试试更换关键词或分类</div></div>`;
@@ -432,15 +339,15 @@
           <button class="back-link" data-nav="/">${icon('back')}返回题目库</button>
           <div><span class="detail-code">${esc(p.code)}</span></div>
           <h1 class="detail-title">${esc(p.title)}</h1>
-          <div class="detail-tags">${(p.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+          <div class="detail-tags">${displayTags(p).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
           <section class="content-section">
             <h2 class="content-title"><span class="num">题</span>题目</h2>
-            <div class="latex-content" id="problem-math">${latexToHtml(p.problem_content)}</div>
+            <div class="latex-content" id="problem-math">${latexToHtml(p.problem_content,{stripLeading:'problem'})}</div>
             ${renderProblemDiagram(p.code)}
           </section>
           <section class="content-section">
             <h2 class="content-title"><span class="num">解</span>解答</h2>
-            <div class="latex-content" id="solution-math">${latexToHtml(p.solution_content)}</div>
+            <div class="latex-content" id="solution-math">${latexToHtml(p.solution_content,{stripLeading:'solution'})}</div>
           </section>
         </article>
         ${state.isAdmin?`<aside class="detail-side">${adminSide}</aside>`:''}
@@ -631,22 +538,34 @@
           <div class="form-group"><label>预估难度（仅管理员可见）</label><input class="input" name="difficulty" value="${attr(p.admin?.difficulty||'')}"></div>
           <div class="form-group"><label>供题方向/机构（仅管理员可见）</label><select class="select" name="institution">${['爱尖子','学而思','其他','未填写'].map(x=>`<option ${p.admin?.institution===x?'selected':''}>${x}</option>`).join('')}</select></div>
           <div class="form-group"><label>原始编号</label><input class="input" name="original_code" value="${attr(p.admin?.original_code||'')}"></div>
-          <div class="form-group"><label>公开标签（逗号分隔）</label><input class="input" name="tags" value="${attr((p.tags||[]).join(','))}"></div>
+          <div class="form-group"><label>所属模块</label><select class="select" name="subject">${SUBJECTS.map(x=>`<option value="${x}" ${inferPrimarySubject(p)===x?'selected':''}>${x}</option>`).join('')}</select><div class="form-help">四大模块只选一个，避免同一道题同时出现在多个模块。</div></div>
+          <div class="form-group"><label>其他公开标签（可选，逗号分隔）</label><input class="input" name="extra_tags" value="${attr(displayTags(p).slice(1).join(','))}"></div>
           <div class="form-group editor-full"><label>重复说明（仅管理员可见）</label><input class="input" name="duplicate_note" value="${attr(p.admin?.duplicate_note||'')}"></div>
           <div class="form-group editor-full"><div style="display:flex;justify-content:space-between;align-items:center"><label>题目内容（LaTeX/普通文本）</label><label class="mini-btn">从 TeX 自动识别<input class="sr-only" id="tex-import" type="file" accept=".tex,text/plain"></label></div><textarea class="textarea" name="problem_content" style="min-height:260px" required>${esc(p.problem_content)}</textarea></div>
-          <div class="form-group editor-full"><label>解答内容（LaTeX/普通文本）</label><textarea class="textarea" name="solution_content" style="min-height:320px" required>${esc(p.solution_content)}</textarea></div>
+          <div class="form-group editor-full"><label>解答内容（LaTeX / Markdown / 普通文本）</label><textarea class="textarea" name="solution_content" style="min-height:320px" required>${esc(p.solution_content)}</textarea><div class="form-help">支持 $...$、\(...\)、\[...\]，也支持单独一行的 [ 与 ] 作为公式块，以及 ### 标题、* 列表、**粗体**。</div></div>
+          <div class="form-group editor-full hidden" id="editor-render-preview"><label>显示效果预览</label><div class="editor-preview-grid"><section><h3>题目</h3><div class="latex-content" id="editor-problem-preview"></div></section><section><h3>解答</h3><div class="latex-content" id="editor-solution-preview"></div></section></div></div>
           <div class="form-group editor-full"><label>内部备注（仅管理员可见）</label><textarea class="textarea" name="internal_notes" style="min-height:90px">${esc(p.admin?.internal_notes||'')}</textarea></div>
           <div class="form-group editor-full"><label>新增附件（可多选 ZIP/PDF/TEX）</label><input class="input" name="files" type="file" multiple accept=".zip,.pdf,.tex,application/zip,application/pdf,text/plain"></div>
           <div class="form-group editor-full"><div class="toggle-row"><button type="button" class="toggle ${p.published?'on':''}" id="published-toggle" aria-label="发布状态"></button><strong id="published-label">${p.published?'已发布，游客可见':'已隐藏，仅管理员可见'}</strong><input type="hidden" name="published" value="${p.published?'true':'false'}"></div></div>
           ${!isNew && (p.files||[]).length?`<div class="form-group editor-full"><label>现有附件</label><div class="file-table">${p.files.map(f=>`<div class="file-row"><span class="file-type">${esc((f.file_type||'').toUpperCase())}</span><div class="file-info"><strong>${esc(f.original_name)}</strong><span>${formatBytes(f.size_bytes)}</span></div><button type="button" class="mini-btn" data-delete-file="${attr(f.id)}">删除</button></div>`).join('')}</div></div>`:''}
         </div>
-      </div><div class="modal-foot">${!isNew?`<button type="button" class="danger-btn" style="margin-right:auto" id="delete-problem-button">删除题目</button>`:''}<button type="button" class="soft-btn" data-close-modal>取消</button><button class="primary-btn" id="editor-save" type="submit">保存题目</button></div></form>
+      </div><div class="modal-foot">${!isNew?`<button type="button" class="danger-btn" style="margin-right:auto" id="delete-problem-button">删除题目</button>`:'<span style="margin-right:auto"></span>'}<button type="button" class="soft-btn" id="editor-preview-button">预览格式</button><button type="button" class="soft-btn" data-close-modal>取消</button><button class="primary-btn" id="editor-save" type="submit">保存题目</button></div></form>
     </div></div>`;
     modalRoot.querySelectorAll('[data-close-modal]').forEach(b=>b.addEventListener('click',closeModal));
     modalRoot.querySelector('.modal-backdrop')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
     const form=document.getElementById('editor-form');
     document.getElementById('published-toggle')?.addEventListener('click',e=>{
       e.currentTarget.classList.toggle('on'); const on=e.currentTarget.classList.contains('on'); form.published.value=String(on); document.getElementById('published-label').textContent=on?'已发布，游客可见':'已隐藏，仅管理员可见';
+    });
+    document.getElementById('editor-preview-button')?.addEventListener('click',async()=>{
+      const wrap=document.getElementById('editor-render-preview');
+      const problemPreview=document.getElementById('editor-problem-preview');
+      const solutionPreview=document.getElementById('editor-solution-preview');
+      problemPreview.innerHTML=latexToHtml(form.problem_content.value,{stripLeading:'problem'});
+      solutionPreview.innerHTML=latexToHtml(form.solution_content.value,{stripLeading:'solution'});
+      wrap.classList.remove('hidden');
+      await typesetMath(wrap);
+      wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
     });
     document.getElementById('tex-import')?.addEventListener('change',async e=>{
       const f=e.target.files?.[0]; if(!f)return; const text=await f.text(); const parsed=parseTexDocument(text);
@@ -668,7 +587,7 @@
     const form=e.currentTarget, btn=document.getElementById('editor-save');
     btn.disabled=true;btn.innerHTML='<span class="spinner"></span>保存中';
     const code=form.code.value.trim().toUpperCase();
-    const payload={code,title:form.title.value.trim(),sort_order:Number(form.sort_order.value)||0,problem_content:form.problem_content.value,solution_content:form.solution_content.value,content_format:'latex',tags:form.tags.value.split(/[,，]/).map(x=>x.trim()).filter(Boolean),published:form.published.value==='true'};
+    const extras=form.extra_tags.value.split(/[,，]/).map(x=>x.trim()).filter(x=>x&&!SUBJECTS.includes(x)); const payload={code,title:form.title.value.trim(),sort_order:Number(form.sort_order.value)||0,problem_content:form.problem_content.value,solution_content:form.solution_content.value,content_format:'mixed-latex',tags:[form.subject.value,...new Set(extras)],published:form.published.value==='true'};
     let result;
     if(isNew) result=await client.from('problems').insert(payload).select().single();
     else result=await client.from('problems').update(payload).eq('id',oldProblem.id).select().single();
@@ -732,7 +651,7 @@
       for(let i=0;i<total;i++){
         const p=manifest.problems[i];
         text.textContent=`${i+1}/${total}  正在导入 ${p.code} ${p.title}`; bar.style.width=`${Math.round(i/total*100)}%`;
-        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:sanitizePublicLatex(p.problem_content),solution_content:sanitizePublicLatex(p.solution_content),content_format:p.content_format||'latex',tags:p.tags||[],published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
+        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:sanitizePublicLatex(p.problem_content),solution_content:sanitizePublicLatex(p.solution_content),content_format:p.content_format||'mixed-latex',tags:importedTags(p),published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
         if(pErr)throw new Error(`${p.code} 写入失败：${pErr.message}`);
         const {error:mErr}=await client.from('problem_admin').upsert({problem_id:problem.id,...(p.admin||{})},{onConflict:'problem_id'});if(mErr)throw new Error(`${p.code} 管理信息失败：${mErr.message}`);
         for(const f of p.files||[]){
@@ -751,7 +670,7 @@
 
   function buildExportManifest() {
     return {version:1,name:'数之谜题库备份',exported_at:new Date().toISOString(),problem_count:state.problems.length,problems:state.problems.map(p=>({
-      code:p.code,sort_order:p.sort_order,title:p.title,problem_content:p.problem_content,solution_content:p.solution_content,content_format:p.content_format||'latex',tags:p.tags||[],published:p.published,
+      code:p.code,sort_order:p.sort_order,title:p.title,problem_content:p.problem_content,solution_content:p.solution_content,content_format:p.content_format||'mixed-latex',primary_category:inferPrimarySubject(p),tags:displayTags(p),published:p.published,
       admin:{difficulty:p.admin?.difficulty||'',institution:p.admin?.institution||'',original_code:p.admin?.original_code||'',duplicate_note:p.admin?.duplicate_note||'',internal_notes:p.admin?.internal_notes||''},
       files:(p.files||[]).map(f=>({file_type:f.file_type,bundle_path:`files/${p.code}/${safeFileName(f.original_name)}`,original_name:f.original_name,mime_type:f.mime_type,size_bytes:f.size_bytes,storage_path:f.storage_path,id:f.id}))
     }))};

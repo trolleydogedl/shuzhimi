@@ -242,3 +242,14 @@ button{border:0;background:none;color:inherit}
   .problem-diagram figcaption>span{display:block;margin-top:2px}
   .latex-content mjx-container[jax="CHTML"][display="true"]{padding-bottom:5px}
 }
+
+/* 2026-07-20 r4: mixed Markdown/LaTeX rendering and editor preview */
+.latex-content hr{border:0;border-top:1px solid var(--border);margin:1.7em 0}
+.latex-content code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:.1em .35em}
+.latex-content p{min-width:0}
+.latex-content mjx-container[jax="CHTML"]{box-sizing:border-box}
+.editor-preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+.editor-preview-grid>section{min-width:0;border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--surface-2);max-height:520px;overflow:auto}
+.editor-preview-grid>section>h3{font-size:14px;margin:0 0 10px;color:var(--primary)}
+.original-diagram .diagram-frame{background:var(--surface-2)}
+@media(max-width:760px){.editor-preview-grid{grid-template-columns:1fr}.modal-foot{flex-wrap:wrap}.modal-foot #editor-preview-button{order:-1;width:100%}}
