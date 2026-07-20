@@ -253,3 +253,69 @@ button{border:0;background:none;color:inherit}
 .editor-preview-grid>section>h3{font-size:14px;margin:0 0 10px;color:var(--primary)}
 .original-diagram .diagram-frame{background:var(--surface-2)}
 @media(max-width:760px){.editor-preview-grid{grid-template-columns:1fr}.modal-foot{flex-wrap:wrap}.modal-foot #editor-preview-button{order:-1;width:100%}}
+
+/* 2026-07-20 r6: resilient delimiters and adaptive formula layout */
+.detail-layout,.detail-main,.content-section,.latex-content,.editor-preview-grid>section{
+  min-width:0;
+  max-width:100%;
+}
+.latex-content{
+  overflow-x:clip;
+}
+.latex-content mjx-container[jax="CHTML"]{
+  min-width:0!important;
+  box-sizing:border-box;
+}
+.latex-content mjx-container[jax="CHTML"][display="true"]{
+  display:block;
+  width:100%;
+  max-width:100%;
+  margin:.82em 0;
+  padding:.28em 0;
+  overflow-x:hidden;
+  overflow-y:hidden;
+  text-align:center;
+  transform-origin:center top;
+}
+.latex-content mjx-container[jax="CHTML"][display="true"].math-scaled{
+  line-height:1.35;
+}
+.latex-content mjx-container[jax="CHTML"][display="true"].math-scroll{
+  overflow-x:auto;
+  overscroll-behavior-inline:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+  text-align:left;
+  padding:.42em .15em .62em;
+}
+.latex-content mjx-container[jax="CHTML"][display="true"].math-wide{
+  padding-inline:.12em;
+}
+.latex-content p.math-compact-paragraph{
+  display:inline-flex;
+  width:auto;
+  max-width:100%;
+  margin:.28em 1.05em .42em 0;
+  vertical-align:middle;
+  align-items:center;
+}
+.latex-content p.math-compact-paragraph mjx-container[jax="CHTML"][display="true"].math-compact{
+  display:inline-block;
+  width:auto;
+  max-width:100%;
+  margin:0;
+  padding:.08em .1em;
+  overflow:visible;
+  vertical-align:middle;
+}
+.editor-preview-grid .latex-content{
+  overflow-x:clip;
+}
+@media(max-width:640px){
+  .latex-content mjx-container[jax="CHTML"][display="true"]{margin:.72em 0}
+  .latex-content p.math-compact-paragraph{margin-right:.72em}
+  .latex-content mjx-container[jax="CHTML"][display="true"].math-scroll{padding-bottom:.72em}
+}
+@supports not (overflow:clip){
+  .latex-content,.editor-preview-grid .latex-content{overflow-x:hidden}
+}

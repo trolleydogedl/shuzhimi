@@ -114,6 +114,58 @@
     return source.replace(new RegExp(`^\\s*(?:#{1,6}\\s*)?${labels}\\s*(?:[：:]\\s*)?(?:\\n+|$)`, 'i'), '');
   }
 
+  const VALID_DELIMITER_COMMANDS = new Set([
+    'lbrace','rbrace','lvert','rvert','vert','Vert','lVert','rVert',
+    'langle','rangle','lfloor','rfloor','lceil','rceil','backslash',
+    'uparrow','downarrow','updownarrow','Uparrow','Downarrow','Updownarrow'
+  ]);
+
+  function delimiterAfter(source, index) {
+    let i = index;
+    while (i < source.length && /\s/.test(source[i])) i++;
+    if (i >= source.length) return { valid: false, end: i };
+    const ch = source[i];
+    if ('()[]|./<>'.includes(ch)) return { valid: true, end: i + 1 };
+    if (ch !== '\\') return { valid: false, end: i + 1 };
+    const symbol = source[i + 1] || '';
+    if ('{}|'.includes(symbol)) return { valid: true, end: i + 2 };
+    const command = source.slice(i + 1).match(/^[A-Za-z]+/)?.[0] || '';
+    return { valid: VALID_DELIMITER_COMMANDS.has(command), end: i + 1 + command.length };
+  }
+
+  function stripLeftRightSizing(source) {
+    return source.replace(/\\(?:left|right)\b\s*/g, '');
+  }
+
+  function repairLeftRightDelimiters(source = '') {
+    let src = String(source)
+      .replace(/\\left\b\s*\{/g, '\\left\\{')
+      .replace(/\\right\b\s*\}/g, '\\right\\}')
+      .replace(/\\left\b\s*<(?![=])/g, '\\left\\langle ')
+      .replace(/\\right\b\s*>(?![=])/g, '\\right\\rangle ');
+
+    let out = '';
+    let cursor = 0;
+    let leftCount = 0;
+    let rightCount = 0;
+    const commandRe = /\\(left|right)\b/g;
+    for (let match; (match = commandRe.exec(src));) {
+      out += src.slice(cursor, match.index);
+      const info = delimiterAfter(src, commandRe.lastIndex);
+      if (info.valid) {
+        out += match[0];
+        if (match[1] === 'left') leftCount++;
+        else rightCount++;
+      }
+      cursor = commandRe.lastIndex;
+    }
+    out += src.slice(cursor);
+
+    // Unbalanced sizing commands make MathJax reject the whole expression.  In
+    // that case keep the actual brackets and only remove automatic sizing.
+    return leftCount === rightCount ? out : stripLeftRightSizing(out);
+  }
+
   function repairMathPayload(value) {
     let src = value.replace(/\r\n?/g, '\n');
     const open = src.startsWith('\\[') ? '\\[' : src.startsWith('$$') ? '$$' : src.startsWith('\\(') ? '\\(' : src.startsWith('$') ? '$' : '';
@@ -124,6 +176,7 @@
     inner = inner.replace(/(^|[^\\])\[\s*(\d+(?:\.\d+)?)\s*\]/g, '$1\\\\[$2mm]');
     inner = inner.replace(/\\textup\{/g, '\\text{').replace(/\\textnormal\{/g, '\\text{');
     inner = inner.replace(/\\begin\{array\}\s*(?!\{)/g, '\\begin{array}{c}');
+    inner = repairLeftRightDelimiters(inner);
 
     if (!open && /^\\begin\{/.test(inner)) return `\\[${inner}\\]`;
     return `${open}${inner}${close}`;
@@ -440,6 +493,14 @@
     return { source: src, math };
   }
 
+  function normalizeAuthoredSource(source = '') {
+    let src = sanitizePublicSource(source);
+    src = normalizeStandaloneDisplayBrackets(src);
+    const math = [];
+    src = extractMath(src, math);
+    return restoreMathTokens(src, math).trim();
+  }
+
   function renderRichText(source = '', options = {}) {
     const normalized = normalizeForRendering(source, options);
     const html = parseBlocks(normalized.source);
@@ -507,6 +568,9 @@
     normalizeForRendering,
     normalizeStandaloneDisplayBrackets,
     normalizeParentheticalMath,
+    normalizeAuthoredSource,
+    repairMathPayload,
+    repairLeftRightDelimiters,
     extractMath
   };
 });

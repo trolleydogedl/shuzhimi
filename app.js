@@ -169,6 +169,7 @@
 
   const renderer = window.SZM_RENDER || {};
   const sanitizePublicLatex = source => renderer.sanitizePublicSource ? renderer.sanitizePublicSource(source) : String(source || '');
+  const normalizeAuthoredContent = source => renderer.normalizeAuthoredSource ? renderer.normalizeAuthoredSource(source) : sanitizePublicLatex(source);
   const stripLatex = source => renderer.stripText ? renderer.stripText(source) : String(source || '');
   const latexPreviewSource = (source, limit=280) => renderer.previewSource ? renderer.previewSource(source, limit) : String(source || '').slice(0, limit);
   const latexToHtml = (source, options={}) => renderer.renderRichText ? renderer.renderRichText(source, options) : `<p>${esc(source)}</p>`;
@@ -189,6 +190,50 @@
     </figure>`;
   }
 
+  function optimizeMathLayout(root=document) {
+    const scope = root?.querySelectorAll ? root : document;
+    const displays = [];
+    if (root?.matches?.('.latex-content mjx-container[jax="CHTML"][display="true"]')) displays.push(root);
+    displays.push(...(scope.querySelectorAll?.('.latex-content mjx-container[jax="CHTML"][display="true"]') || []));
+
+    for (const math of [...new Set(displays)]) {
+      const paragraph = math.parentElement?.tagName === 'P' ? math.parentElement : null;
+      paragraph?.classList.remove('math-compact-paragraph');
+      math.classList.remove('math-compact','math-scaled','math-scroll','math-wide');
+      math.style.removeProperty('font-size');
+
+      const host = math.closest('.latex-content');
+      const available = Math.max(1, paragraph?.clientWidth || host?.clientWidth || math.parentElement?.clientWidth || 1);
+      const mathBody = math.querySelector(':scope > mjx-math') || math.firstElementChild;
+      const natural = Math.max(
+        mathBody?.scrollWidth || 0,
+        mathBody?.getBoundingClientRect?.().width || 0,
+        math.scrollWidth > available ? math.scrollWidth : 0
+      );
+      const isStructured = Boolean(math.querySelector('mjx-mtable,mjx-mtr,mjx-labels'));
+      const onlyMath = Boolean(paragraph && [...paragraph.childNodes].every(node =>
+        node === math || (node.nodeType === Node.TEXT_NODE && !node.textContent.trim())
+      ));
+
+      if (onlyMath && !isStructured && natural > 0 && natural <= available * 0.48) {
+        paragraph.classList.add('math-compact-paragraph');
+        math.classList.add('math-compact');
+        continue;
+      }
+
+      if (natural > available + 6) {
+        const scale = Math.max(0.70, Math.min(0.98, (available - 10) / natural));
+        if (scale < 0.98) {
+          math.style.fontSize = `${Math.round(scale * 100)}%`;
+          math.classList.add('math-scaled');
+        }
+        if (natural * scale > available + 4 || scale <= 0.71) math.classList.add('math-scroll');
+      } else if (natural > available * 0.82) {
+        math.classList.add('math-wide');
+      }
+    }
+  }
+
   async function typesetMath(root=document, attempt=0) {
     if (!root) return;
     if (!window.MathJax?.typesetPromise) {
@@ -199,6 +244,7 @@
       window.MathJax.typesetClear?.([root]);
       window.MathJax.texReset?.();
       await window.MathJax.typesetPromise([root]);
+      optimizeMathLayout(root);
     } catch (error) {
       console.warn('MathJax bulk typeset error; retrying block by block', error);
       const blocks = [];
@@ -215,6 +261,7 @@
         }
       }
       root.querySelectorAll?.('.math-render-warning').forEach(el => el.remove());
+      optimizeMathLayout(root);
       if (failures) {
         const warning = document.createElement('div');
         warning.className = 'math-render-warning';
@@ -547,14 +594,14 @@
           <div class="form-group"><label>其他公开标签（可选，逗号分隔）</label><input class="input" name="extra_tags" value="${attr(displayTags(p).slice(1).join(','))}"></div>
           <div class="form-group editor-full"><label>重复说明（仅管理员可见）</label><input class="input" name="duplicate_note" value="${attr(p.admin?.duplicate_note||'')}"></div>
           <div class="form-group editor-full"><div style="display:flex;justify-content:space-between;align-items:center"><label>题目内容（LaTeX/普通文本）</label><label class="mini-btn">从 TeX 自动识别<input class="sr-only" id="tex-import" type="file" accept=".tex,text/plain"></label></div><textarea class="textarea" name="problem_content" style="min-height:260px" required>${esc(p.problem_content)}</textarea></div>
-          <div class="form-group editor-full"><label>解答内容（LaTeX / Markdown / 普通文本）</label><textarea class="textarea" name="solution_content" style="min-height:320px" required>${esc(p.solution_content)}</textarea><div class="form-help">支持 $...$、\(...\)、\[...\]，也支持单独一行的 [ 与 ] 作为公式块，以及 ### 标题、* 列表、**粗体**。</div></div>
+          <div class="form-group editor-full"><label>解答内容（LaTeX / Markdown / 普通文本）</label><textarea class="textarea" name="solution_content" style="min-height:320px" required>${esc(p.solution_content)}</textarea><div class="form-help">支持 $...$、\(...\)、\[...\]、LaTeX 环境与 Markdown。保存时会自动修复常见的 \left / \right 分隔符问题，并统一为批量导入的排版效果。</div></div>
           <div class="form-group editor-full hidden" id="editor-render-preview"><label>显示效果预览</label><div class="editor-preview-grid"><section><h3>题目</h3><div class="latex-content" id="editor-problem-preview"></div></section><section><h3>解答</h3><div class="latex-content" id="editor-solution-preview"></div></section></div></div>
           <div class="form-group editor-full"><label>内部备注（仅管理员可见）</label><textarea class="textarea" name="internal_notes" style="min-height:90px">${esc(p.admin?.internal_notes||'')}</textarea></div>
           <div class="form-group editor-full"><label>新增附件（可多选 ZIP/PDF/TEX）</label><input class="input" name="files" type="file" multiple accept=".zip,.pdf,.tex,application/zip,application/pdf,text/plain"></div>
           <div class="form-group editor-full"><div class="toggle-row"><button type="button" class="toggle ${p.published?'on':''}" id="published-toggle" aria-label="发布状态"></button><strong id="published-label">${p.published?'已发布，游客可见':'已隐藏，仅管理员可见'}</strong><input type="hidden" name="published" value="${p.published?'true':'false'}"></div></div>
           ${!isNew && (p.files||[]).length?`<div class="form-group editor-full"><label>现有附件</label><div class="file-table">${p.files.map(f=>`<div class="file-row"><span class="file-type">${esc((f.file_type||'').toUpperCase())}</span><div class="file-info"><strong>${esc(f.original_name)}</strong><span>${formatBytes(f.size_bytes)}</span></div><button type="button" class="mini-btn" data-delete-file="${attr(f.id)}">删除</button></div>`).join('')}</div></div>`:''}
         </div>
-      </div><div class="modal-foot">${!isNew?`<button type="button" class="danger-btn" style="margin-right:auto" id="delete-problem-button">删除题目</button>`:'<span style="margin-right:auto"></span>'}<button type="button" class="soft-btn" id="editor-preview-button">预览格式</button><button type="button" class="soft-btn" data-close-modal>取消</button><button class="primary-btn" id="editor-save" type="submit">保存题目</button></div></form>
+      </div><div class="modal-foot">${!isNew?`<button type="button" class="danger-btn" style="margin-right:auto" id="delete-problem-button">删除题目</button>`:'<span style="margin-right:auto"></span>'}<button type="button" class="soft-btn" id="editor-preview-button">整理并预览</button><button type="button" class="soft-btn" data-close-modal>取消</button><button class="primary-btn" id="editor-save" type="submit">保存题目</button></div></form>
     </div></div>`;
     modalRoot.querySelectorAll('[data-close-modal]').forEach(b=>b.addEventListener('click',closeModal));
     modalRoot.querySelector('.modal-backdrop')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
@@ -576,9 +623,10 @@
       const f=e.target.files?.[0]; if(!f)return; const text=await f.text(); const parsed=parseTexDocument(text);
       if(parsed.title)form.title.value=parsed.title;
       if(parsed.difficulty)form.difficulty.value=parsed.difficulty;
-      if(parsed.problem)form.problem_content.value=parsed.problem;
-      if(parsed.solution)form.solution_content.value=parsed.solution;
-      toast('已从 TeX 识别题目和解答','success');
+      if(parsed.problem)form.problem_content.value=normalizeAuthoredContent(parsed.problem);
+      if(parsed.solution)form.solution_content.value=normalizeAuthoredContent(parsed.solution);
+      document.getElementById('editor-preview-button')?.click();
+      toast('已从 TeX 识别、整理并生成预览','success');
     });
     modalRoot.querySelectorAll('[data-delete-file]').forEach(b=>b.addEventListener('click',()=>deleteFile(b.dataset.deleteFile,p)));
     document.getElementById('delete-problem-button')?.addEventListener('click',()=>deleteProblem(p));
@@ -592,7 +640,12 @@
     const form=e.currentTarget, btn=document.getElementById('editor-save');
     btn.disabled=true;btn.innerHTML='<span class="spinner"></span>保存中';
     const code=form.code.value.trim().toUpperCase();
-    const extras=form.extra_tags.value.split(/[,，]/).map(x=>x.trim()).filter(x=>x&&!SUBJECTS.includes(x)); const payload={code,title:form.title.value.trim(),sort_order:Number(form.sort_order.value)||0,problem_content:form.problem_content.value,solution_content:form.solution_content.value,content_format:'markdown',tags:[form.subject.value,...new Set(extras)],published:form.published.value==='true'};
+    const extras=form.extra_tags.value.split(/[,，]/).map(x=>x.trim()).filter(x=>x&&!SUBJECTS.includes(x));
+    const normalizedProblem=normalizeAuthoredContent(form.problem_content.value);
+    const normalizedSolution=normalizeAuthoredContent(form.solution_content.value);
+    form.problem_content.value=normalizedProblem;
+    form.solution_content.value=normalizedSolution;
+    const payload={code,title:form.title.value.trim(),sort_order:Number(form.sort_order.value)||0,problem_content:normalizedProblem,solution_content:normalizedSolution,content_format:'markdown',tags:[form.subject.value,...new Set(extras)],published:form.published.value==='true'};
     let result;
     if(isNew) result=await client.from('problems').insert(payload).select().single();
     else result=await client.from('problems').update(payload).eq('id',oldProblem.id).select().single();
@@ -656,7 +709,7 @@
       for(let i=0;i<total;i++){
         const p=manifest.problems[i];
         text.textContent=`${i+1}/${total}  正在导入 ${p.code} ${p.title}`; bar.style.width=`${Math.round(i/total*100)}%`;
-        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:sanitizePublicLatex(p.problem_content),solution_content:sanitizePublicLatex(p.solution_content),content_format:normalizeContentFormat(p.content_format),tags:importedTags(p),published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
+        const {data:problem,error:pErr}=await client.from('problems').upsert({code:p.code,title:p.title,problem_content:normalizeAuthoredContent(p.problem_content),solution_content:normalizeAuthoredContent(p.solution_content),content_format:normalizeContentFormat(p.content_format),tags:importedTags(p),published:p.published!==false,sort_order:p.sort_order||i+1},{onConflict:'code'}).select().single();
         if(pErr)throw new Error(`${p.code} 写入失败：${pErr.message}`);
         const {error:mErr}=await client.from('problem_admin').upsert({problem_id:problem.id,...(p.admin||{})},{onConflict:'problem_id'});if(mErr)throw new Error(`${p.code} 管理信息失败：${mErr.message}`);
         for(const f of p.files||[]){
@@ -763,6 +816,11 @@
   }
 
   window.addEventListener('hashchange',renderRoute);
+  let mathResizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(mathResizeTimer);
+    mathResizeTimer = setTimeout(() => optimizeMathLayout(document), 140);
+  }, {passive:true});
 
   function debounce(fn,ms){let id;return(...args)=>{clearTimeout(id);id=setTimeout(()=>fn(...args),ms)}}
   function fileType(name=''){const ext=name.split('.').pop().toLowerCase();return ['zip','pdf','tex'].includes(ext)?ext:'other'}
