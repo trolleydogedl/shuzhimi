@@ -166,6 +166,45 @@
     return leftCount === rightCount ? out : stripLeftRightSizing(out);
   }
 
+  function isSingleDollar(source, index) {
+    return source[index] === '$' && !isEscaped(source, index) && source[index - 1] !== '$' && source[index + 1] !== '$';
+  }
+
+  function looksLikeInlineMath(value = '') {
+    const src = String(value).trim();
+    if (!src || src.length > 1200) return false;
+    if (/\\[A-Za-z]+/.test(src)) return true;
+    if (/[=<>≤≥≠^_+*/|∣∈∉]/.test(src)) return true;
+    if (/^[A-Za-z0-9{}()[\].,;:+\-*/^_\\\s]+$/.test(src) && /[A-Za-z0-9]/.test(src)) return true;
+    return false;
+  }
+
+  // Conservatively close a genuinely unmatched single-dollar formula at a
+  // Chinese sentence boundary or at end of line. Valid pairs are untouched.
+  function repairUnmatchedInlineDollars(source = '') {
+    return String(source).split('\n').map(line => {
+      const positions = [];
+      for (let i = 0; i < line.length; i++) if (isSingleDollar(line, i)) positions.push(i);
+      if (positions.length % 2 === 0) return line;
+
+      const start = positions[positions.length - 1];
+      let depth = 0;
+      let boundary = -1;
+      for (let i = start + 1; i < line.length; i++) {
+        if (line[i] === '{' && !isEscaped(line, i)) depth++;
+        else if (line[i] === '}' && !isEscaped(line, i) && depth > 0) depth--;
+        else if (depth === 0 && /[，。；：！？]/.test(line[i])) { boundary = i; break; }
+      }
+      // Do not close merely at a physical line ending: authored TeX often
+      // wraps one inline formula across source lines. Only repair when a clear
+      // Chinese sentence boundary exists on the same line.
+      if (boundary < 0) return line;
+      const payload = line.slice(start + 1, boundary);
+      if (!looksLikeInlineMath(payload)) return line;
+      return `${line.slice(0, boundary)}$${line.slice(boundary)}`;
+    }).join('\n');
+  }
+
   function repairMathPayload(value) {
     let src = value.replace(/\r\n?/g, '\n');
     const open = src.startsWith('\\[') ? '\\[' : src.startsWith('$$') ? '$$' : src.startsWith('\\(') ? '\\(' : src.startsWith('$') ? '$' : '';
@@ -471,10 +510,13 @@
     return html.join('\n');
   }
 
-  function restoreMathTokens(source, math) {
+  function restoreMathTokens(source, math, htmlSafe = false) {
     let src = source;
     for (let pass = 0; pass < 4; pass++) {
-      const next = src.replace(TOKEN_RE, (_, index) => math[Number(index)] || '');
+      const next = src.replace(TOKEN_RE, (_, index) => {
+        const value = math[Number(index)] || '';
+        return htmlSafe ? escapeHtml(value) : value;
+      });
       if (next === src) break;
       src = next;
     }
@@ -484,6 +526,7 @@
   function normalizeForRendering(source = '', options = {}) {
     let src = sanitizePublicSource(source);
     src = stripLeadingLabel(src, options.stripLeading || '');
+    src = repairUnmatchedInlineDollars(src);
     src = normalizeStandaloneDisplayBrackets(src);
     const math = [];
     src = extractMath(src, math);
@@ -495,6 +538,7 @@
 
   function normalizeAuthoredSource(source = '') {
     let src = sanitizePublicSource(source);
+    src = repairUnmatchedInlineDollars(src);
     src = normalizeStandaloneDisplayBrackets(src);
     const math = [];
     src = extractMath(src, math);
@@ -504,7 +548,7 @@
   function renderRichText(source = '', options = {}) {
     const normalized = normalizeForRendering(source, options);
     const html = parseBlocks(normalized.source);
-    return restoreMathTokens(html, normalized.math) || '<p>暂无内容</p>';
+    return restoreMathTokens(html, normalized.math, true) || '<p>暂无内容</p>';
   }
 
   function previewSource(source = '', limit = 280) {
@@ -571,6 +615,7 @@
     normalizeAuthoredSource,
     repairMathPayload,
     repairLeftRightDelimiters,
+    repairUnmatchedInlineDollars,
     extractMath
   };
 });

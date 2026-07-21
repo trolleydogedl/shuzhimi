@@ -254,13 +254,23 @@ button{border:0;background:none;color:inherit}
 .original-diagram .diagram-frame{background:var(--surface-2)}
 @media(max-width:760px){.editor-preview-grid{grid-template-columns:1fr}.modal-foot{flex-wrap:wrap}.modal-foot #editor-preview-button{order:-1;width:100%}}
 
-/* 2026-07-20 r6: resilient delimiters and adaptive formula layout */
+/* 2026-07-21 r7: safe HTML math, centered display formulas and balanced compact rows */
 .detail-layout,.detail-main,.content-section,.latex-content,.editor-preview-grid>section{
   min-width:0;
   max-width:100%;
 }
 .latex-content{
   overflow-x:clip;
+  text-align:center;
+}
+.latex-content p{
+  text-align:justify;
+  text-justify:inter-ideograph;
+}
+.latex-content h2,.latex-content h3,.latex-content h4,
+.latex-content ul,.latex-content ol,.latex-content dl,
+.latex-content blockquote,.latex-content .proof-box,.latex-content .theorem{
+  text-align:left;
 }
 .latex-content mjx-container[jax="CHTML"]{
   min-width:0!important;
@@ -270,15 +280,18 @@ button{border:0;background:none;color:inherit}
   display:block;
   width:100%;
   max-width:100%;
-  margin:.82em 0;
+  margin:.86em auto;
   padding:.28em 0;
   overflow-x:hidden;
   overflow-y:hidden;
   text-align:center;
-  transform-origin:center top;
+}
+.latex-content mjx-container[jax="CHTML"][display="true"] > mjx-math{
+  display:inline-block;
+  max-width:none;
 }
 .latex-content mjx-container[jax="CHTML"][display="true"].math-scaled{
-  line-height:1.35;
+  line-height:1.38;
 }
 .latex-content mjx-container[jax="CHTML"][display="true"].math-scroll{
   overflow-x:auto;
@@ -286,7 +299,7 @@ button{border:0;background:none;color:inherit}
   -webkit-overflow-scrolling:touch;
   scrollbar-width:thin;
   text-align:left;
-  padding:.42em .15em .62em;
+  padding:.44em .18em .66em;
 }
 .latex-content mjx-container[jax="CHTML"][display="true"].math-wide{
   padding-inline:.12em;
@@ -294,26 +307,29 @@ button{border:0;background:none;color:inherit}
 .latex-content p.math-compact-paragraph{
   display:inline-flex;
   width:auto;
-  max-width:100%;
-  margin:.28em 1.05em .42em 0;
+  max-width:calc(100% - .4em);
+  margin:.28em .52em .46em;
   vertical-align:middle;
   align-items:center;
+  justify-content:center;
+  text-align:center;
 }
 .latex-content p.math-compact-paragraph mjx-container[jax="CHTML"][display="true"].math-compact{
   display:inline-block;
   width:auto;
   max-width:100%;
-  margin:0;
-  padding:.08em .1em;
+  margin:0 auto;
+  padding:.08em .14em;
   overflow:visible;
   vertical-align:middle;
+  text-align:center;
 }
 .editor-preview-grid .latex-content{
   overflow-x:clip;
 }
 @media(max-width:640px){
-  .latex-content mjx-container[jax="CHTML"][display="true"]{margin:.72em 0}
-  .latex-content p.math-compact-paragraph{margin-right:.72em}
+  .latex-content mjx-container[jax="CHTML"][display="true"]{margin:.74em auto}
+  .latex-content p.math-compact-paragraph{margin:.24em .34em .4em}
   .latex-content mjx-container[jax="CHTML"][display="true"].math-scroll{padding-bottom:.72em}
 }
 @supports not (overflow:clip){

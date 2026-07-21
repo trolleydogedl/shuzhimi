@@ -215,20 +215,22 @@
         node === math || (node.nodeType === Node.TEXT_NODE && !node.textContent.trim())
       ));
 
-      if (onlyMath && !isStructured && natural > 0 && natural <= available * 0.48) {
+      if (onlyMath && !isStructured && natural > 0 && natural <= available * 0.44) {
         paragraph.classList.add('math-compact-paragraph');
         math.classList.add('math-compact');
         continue;
       }
 
-      if (natural > available + 6) {
-        const scale = Math.max(0.70, Math.min(0.98, (available - 10) / natural));
+      if (natural > available + 8) {
+        const fittedScale = (available - 14) / natural;
+        const scale = Math.max(0.78, Math.min(0.98, fittedScale));
         if (scale < 0.98) {
           math.style.fontSize = `${Math.round(scale * 100)}%`;
           math.classList.add('math-scaled');
         }
-        if (natural * scale > available + 4 || scale <= 0.71) math.classList.add('math-scroll');
-      } else if (natural > available * 0.82) {
+        // Scroll only when the formula still cannot fit after a readable scale.
+        if (natural * scale > available - 2) math.classList.add('math-scroll');
+      } else if (natural > available * 0.84) {
         math.classList.add('math-wide');
       }
     }
